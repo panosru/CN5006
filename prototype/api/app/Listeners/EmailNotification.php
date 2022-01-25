@@ -24,6 +24,6 @@ class EmailNotification
      */
     public function handle(EmailSent $event)
     {
-        echo "Fuck you";
+        echo "Test message";
     }
 }
