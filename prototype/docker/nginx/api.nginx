@@ -1,0 +1,49 @@
+# Nginx configuration
+
+server
+{
+    listen 9090;
+    listen [::]:9090;
+    root /var/www/html/api/public;
+    index index.php index.html;
+    #server_name localhost;
+
+    charset utf-8;
+
+    location /
+    {
+        # try_files $uri /index.php?$query_string;
+        try_files $uri $uri/ /index.php$is_args$args;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_log  /var/log/nginx/error.log;
+    access_log /var/log/nginx/access.log;
+
+    sendfile off;
+
+    client_max_body_size 100m;
+
+    location ~ \.php$
+    {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass cn5006-api:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_param COCKPIT_URL_REWRITE On;
+        fastcgi_intercept_errors off;
+        fastcgi_buffer_size 16k;
+        fastcgi_buffers 4 16k;
+    }
+
+    # Deny direct access
+    location ~ /(\.ht|\.git|cp|composer.json|package.json|storage\/logs\/cockpit.log|storage\/data\/)
+    {
+        deny all;
+    }
+}

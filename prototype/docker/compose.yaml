@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+
+  cn5006-web:
+      image: nginx:latest
+      container_name: 'cn5006-web'
+      # cap and privileged needed for slowlog
+      restart: 'no'
+      logging:
+        driver: "json-file"
+        options:
+          max-size: 2m
+          max-file: '3'
+      cap_add:
+        - CAP_SYS_PTRACE
+      privileged: true
+      ports:
+        - "3002:9090"
+      volumes:
+        - ./nginx/api.nginx:/etc/nginx/conf.d/api.conf
+#        - ./nginx/web.nginx:/etc/nginx/conf.d/web.conf
+#        - ./nginx/reverse-proxy.nginx:/etc/nginx/conf.d/reverse-proxy.conf
+#        - ./nginx/proxy.conf:/etc/nginx/includes/proxy.conf
+        - ./nginx/logs/access.log:/var/log/nginx/access.log
+        - ./nginx/logs/error.log:/var/log/nginx/error.log
+        - ./../api:/var/www/html/api
+#        - ./../web:/var/www/html/web
+      env_file:
+        - ./nginx/.env
+        - ./nginx/.env.dev
+      depends_on:
+        - cn5006-api
+
+  cn5006-dashboard:
+      build:
+        context: ./node
+      container_name: 'cn5006-dashboard'
+      # cap and privileged needed for slowlog
+      restart: 'no'
+      logging:
+        driver: "json-file"
+        options:
+          max-size: 2m
+          max-file: '3'
+      cap_add:
+        - CAP_SYS_PTRACE
+      privileged: true
+      expose:
+        - 3001
+      ports:
+        - "3001:3001"
+      depends_on:
+        - cn5006-api
+      volumes:
+        - ./../dashboard:/app
+        - ./node/dashboard-setup.sh:/usr/local/bin/dashboard-setup.sh
+      command: bash -c "dashboard-setup.sh && npm start"
+
+  cn5006-api:
+      build:
+        context: ./php
+      container_name: 'cn5006-api'
+      restart: 'no'
+      logging:
+        driver: "json-file"
+        options:
+          max-size: 2m
+          max-file: 3
+      cap_add:
+        - CAP_SYS_PTRACE
+      privileged: true
+      expose:
+        - 9000
+      volumes:
+        - ./../api:/var/www/html/api
+        - ./php/php.ini:/usr/local/etc/php/conf.d/php.ini
+        - ./php/php.dev.ini:/usr/local/etc/php/conf.d/php.dev.ini
+        - ./php/logs/xdebug.log:/tmp/xdebug.log
+        - ./php/logs/php.error.log:/tmp/php.error.log
+        - ./php/run-artisan.sh:/usr/local/bin/run-artisan.sh:ro
+        - ./php/api-worker.conf:/etc/supervisor/conf.d/api-worker.conf:ro
+      command: bash -c "run-artisan.sh && php-fpm && tail -F /var/www/html/api/logs/worker.log"
+      env_file:
+        - ./php/.env
+        - ./php/.env.dev
+      depends_on:
+        - cn5006-mongo
+        - cn5006-redis
+        - cn5006-mailhog
+
+  cn5006-mongo:
+      image: mongo:latest
+      container_name: 'cn5006-mongo'
+      restart: 'no'
+      logging:
+        driver: "json-file"
+        options:
+          max-size: 2m
+          max-file: '3'
+      environment:
+        MONGO_INITDB_DATABASE: 'db'
+        MONGO_INITDB_ROOT_USERNAME: 'root'
+        MONGO_INITDB_ROOT_PASSWORD: '879zd5tdF4BAoC'
+      ports:
+        # <Port exposed> : < Mongo Port running inside container>
+        - '27017-27019:27017-27019'
+      expose:
+        # Opens port 5432 on the container
+        - '27017'
+        - '27018'
+        - '27019'
+#      healthcheck:
+#        test: echo 'db.runCommand({serverStatus:1}).ok' | mongo admin -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --quiet | grep 1
+#        interval: 10s
+#        timeout: 10s
+#        retries: 3
+#        start_period: 20s
+      # Where data will be persisted
+      volumes:
+        - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+        - cn5006-mongo-data:/data/db
+
+  cn5006-mailhog:
+    image: mailhog/mailhog
+    container_name: 'cn5006-mailhog'
+    restart: 'no'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 2m
+        max-file: '3'
+    ports:
+      - 1025:1025 # smtp server
+      - 8025:8025 # web ui
+
+  cn5006-redis:
+    image: redis:latest
+    container_name: 'cn5006-redis'
+    restart: 'no'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 2m
+        max-file: '3'
+    ports:
+      - 6379:6379
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "n38A6RM7x8H2XG"]
+    volumes:
+      - cn5006-redis-data:/data
+
+# Volumes
+volumes:
+  cn5006-mongo-data:
+  cn5006-redis-data:

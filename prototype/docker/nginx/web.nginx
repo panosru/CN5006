@@ -1,0 +1,33 @@
+# Nginx configuration
+
+server
+{
+    listen 8080;
+    listen [::]:8080;
+    root /var/www/html/web;
+    index index.html index.htm;
+    #server_name localhost;
+
+    charset utf-8;
+
+    location /
+    {
+        try_files $uri $uri/ =404;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_log  /var/log/nginx/error.log;
+    access_log /var/log/nginx/access.log;
+
+    sendfile off;
+
+    client_max_body_size 100m;
+
+    # Deny direct access
+    location ~ /(\.ht|\.git|cp|package.json|storage\/logs\/cockpit.log|storage\/data\/)
+    {
+        deny all;
+    }
+}
